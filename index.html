@@ -63,6 +63,11 @@ html.w-left #w-shell{left:24px;right:auto;}
 .w-head-btn svg{width:18px;height:18px;}
 .w-quick{padding:9px 11px;display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--w-border);flex-shrink:0;background:var(--w-bg-soft);}
 .w-quick::-webkit-scrollbar{display:none;}
+.w-locs{display:flex;flex-direction:column;gap:7px;padding:2px 0 4px;align-self:flex-start;max-width:92%;}
+.w-locbtn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;font-family:inherit;cursor:pointer;background:var(--w-bg);border:1.5px solid var(--w-brand);border-radius:12px;padding:9px 13px;transition:background .15s;}
+.w-locbtn:hover{background:var(--w-bg-soft);}
+.w-locbtn strong{font-size:13.5px;color:var(--w-brand);}
+.w-locbtn span{font-size:11.5px;color:#6B7689;}
 .w-qbtn{background:#fff;border:1px solid var(--w-border);border-radius:20px;font-size:12px;padding:6px 13px;cursor:pointer;color:var(--w-text);font-family:inherit;white-space:nowrap;transition:all .15s;}
 .w-qbtn:hover{background:var(--w-accent);color:var(--w-brand);border-color:var(--w-accent);font-weight:600;}
 .w-msgs{flex:1;overflow-y:auto;padding:14px 13px 8px;display:flex;flex-direction:column;gap:9px;scroll-behavior:smooth;}
@@ -126,9 +131,9 @@ html.w-left #w-shell{left:24px;right:auto;}
 <!-- ★ KONFIGURACJA — tylko dwie rzeczy ★ -->
 <script>
 window.WIDGET = {
-  siteId:     "test",                                            // identyfikator firmy (nadaje operator)
+  siteId:     "demo",                                            // identyfikator firmy (nadaje operator)
   backendUrl: "https://projekta.edziopedzio1939.workers.dev",    // Twój worker
-  footer:     "Powered By Somada",                          // ← ZMIEŃ TU napis w stopce
+  footer:     "powered by Twoja Firma",                          // ← ZMIEŃ TU napis w stopce
 };
 </script>
 
@@ -139,18 +144,18 @@ window.WIDGET = {
   const Q = new URLSearchParams(location.search);
   const BASE = ((W.backendUrl||'https://projekta.edziopedzio1939.workers.dev')).replace(/\/+$/,'');
   const SITE = W.siteId || Q.get('site') || '';
-  let open=false, busy=false, greeted=false, history=[], transcript=[], C={};
+  let open=false, busy=false, greeted=false, history=[], transcript=[], C={}, LOCID='';
   const $ = id => document.getElementById(id);
   const reduceMotion = matchMedia('(prefers-reduced-motion:reduce)').matches;
   const shell=$('w-shell');
-  const HIST_KEY="w_hist_"+SITE, OPEN_KEY="w_autoopen_"+SITE, CID_KEY="w_cid_"+SITE;
+  const HIST_KEY="w_hist_"+SITE, OPEN_KEY="w_autoopen_"+SITE, CID_KEY="w_cid_"+SITE, LOC_KEY="w_loc_"+SITE;
   const store={get(k){try{return sessionStorage.getItem(k);}catch(e){return null;}},set(k,v){try{sessionStorage.setItem(k,v);}catch(e){}},del(k){try{sessionStorage.removeItem(k);}catch(e){}}};
   let clientId=store.get(CID_KEY); if(!clientId){clientId='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);store.set(CID_KEY,clientId);}
   let orderSeen={}, ordersInit=false;
   function hexToRgb(h){if(!h)return null;h=String(h).replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');if(h.length!==6)return null;const n=parseInt(h,16);if(isNaN(n))return null;return [(n>>16)&255,(n>>8)&255,n&255];}
 
   // 1) pobierz publiczny wyglad, potem zbuduj UI
-  fetch(BASE+'/config?site='+encodeURIComponent(SITE))
+  fetch(BASE+'/config?site='+encodeURIComponent(SITE)+'&t='+Date.now(),{cache:'no-store'})
     .then(r=>r.json()).then(d=>{ C=(d&&d.config)||{}; })
     .catch(()=>{ C={}; })
     .finally(init);
@@ -177,6 +182,8 @@ window.WIDGET = {
     qq.forEach(q=>{const t=typeof q==='string'?q:(q.text||q.label||'');const b=document.createElement('button');b.className='w-qbtn';b.type='button';b.textContent=t;b.onclick=()=>send(t);qbar.appendChild(b);});
     if(!qq.length)qbar.style.display='none';
     if(C.aiDisclosure&&String(C.aiDisclosure).trim())addNote();
+    const savedLoc=store.get(LOC_KEY);
+    if(savedLoc&&(C.locations||[]).some(l=>String(l.id)===savedLoc))LOCID=savedLoc;
 
     try{const raw=store.get(HIST_KEY);if(raw){const s=JSON.parse(raw);if(Array.isArray(s)&&s.length){transcript=s;greeted=true;s.forEach((m,i)=>{appendBubble(m.t,m.r==='user'?'usr':'bot',m.r==='user'?i:-1);history.push({role:m.r==='user'?'user':'model',parts:[{text:m.t}]});});}}}catch(e){}
 
@@ -197,10 +204,34 @@ window.WIDGET = {
   function addNote(){const n=document.createElement('div');n.className='w-note';n.textContent=C.aiDisclosure;$('w-msgs').appendChild(n);}
   function openWin(){open=true;shell.classList.add('expanded');shell.classList.remove('collapsed');if(!greeted){greeted=true;setTimeout(greet,reduceMotion?0:300);}setTimeout(()=>$('w-ta').focus(),reduceMotion?0:360);}
   function closeWin(){open=false;shell.classList.remove('expanded');shell.classList.add('collapsed');}
-  function reset(){history=[];transcript=[];store.del(HIST_KEY);$('w-msgs').innerHTML='';if(C.aiDisclosure&&String(C.aiDisclosure).trim())addNote();greeted=true;greet();$('w-ta').focus();}
-  function greet(){msg(C.welcomeMessage||'Cześć! W czym mogę pomóc?','bot',false);}
-  function send(text){text=(text||'').trim();if(!text||busy)return;const ta=$('w-ta');ta.value='';ta.style.height='auto';msg(text,'usr');history.push({role:'user',parts:[{text}]});typing(true);setBusy(true);
-    fetch(BASE+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteId:SITE,clientId,history})})
+  function reset(){history=[];transcript=[];store.del(HIST_KEY);LOCID='';store.del(LOC_KEY);$('w-msgs').innerHTML='';if(C.aiDisclosure&&String(C.aiDisclosure).trim())addNote();greeted=true;greet();$('w-ta').focus();}
+  function greet(){
+    const locs=C.locations||[];
+    if(locs.length&&!LOCID){ showLocPicker(); return; }
+    msg(C.welcomeMessage||'Cześć! W czym mogę pomóc?','bot',false);
+  }
+  function showLocPicker(){
+    msg('Cześć! Mamy kilka lokali — wybierz ten, który Cię interesuje:','bot',false);
+    const wrap=document.createElement('div'); wrap.className='w-locs';
+    (C.locations||[]).forEach(l=>{
+      const b=document.createElement('button'); b.type='button'; b.className='w-locbtn';
+      b.innerHTML='<strong>'+esc(l.name)+'</strong>'+(l.address?'<span>'+esc(l.address)+'</span>':'');
+      b.onclick=()=>{
+        LOCID=String(l.id); store.set(LOC_KEY,LOCID);
+        wrap.remove();
+        msg(l.name,'usr');
+        msg('Wybrano lokal **'+l.name+'**. W czym mogę pomóc?','bot',false);
+      };
+      wrap.appendChild(b);
+    });
+    $('w-msgs').appendChild(wrap);
+    $('w-msgs').scrollTop=$('w-msgs').scrollHeight;
+  }
+  function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function send(text){text=(text||'').trim();if(!text||busy)return;
+    if((C.locations||[]).length&&!LOCID){msg('Najpierw wybierz lokal z listy powyżej — wtedy podam dane właśnie tego miejsca.','bot',false);if(!document.querySelector('.w-locs'))showLocPicker();return;}
+    const ta=$('w-ta');ta.value='';ta.style.height='auto';msg(text,'usr');history.push({role:'user',parts:[{text}]});typing(true);setBusy(true);
+    fetch(BASE+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteId:SITE,clientId,history,locationId:LOCID})})
       .then(async r=>{let d={};try{d=await r.json();}catch(e){throw new Error('Zła odpowiedź');}if(!r.ok||d.error)throw new Error(d.error||('HTTP '+r.status));if(!d.reply)throw new Error('Pusta odpowiedź');return d.reply;})
       .then(reply=>{history.push({role:'model',parts:[{text:reply}]});typing(false);msg(reply,'bot');})
       .catch(err=>{typing(false);console.error('[widget]',err);errMsg('Nie udało się połączyć z asystentem. Spróbuj ponownie za chwilę.');})
@@ -215,7 +246,7 @@ window.WIDGET = {
   async function pollOrders(){
     if(!clientId)return;
     try{
-      const r=await fetch(BASE+'/order-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteId:SITE,clientId})});
+      const r=await fetch(BASE+'/order-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteId:SITE,clientId,locationId:LOCID})});
       const d=await r.json();const list=(d&&d.orders)||[];
       list.forEach(o=>{
         const st=o.status||'new';
